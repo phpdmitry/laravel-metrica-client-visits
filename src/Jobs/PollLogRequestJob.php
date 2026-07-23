@@ -10,17 +10,22 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use PhpDmitry\MetricaClientVisits\Contracts\LogsApiClient;
+use PhpDmitry\MetricaClientVisits\Jobs\Concerns\UsesMetricaQueuePolicy;
 use PhpDmitry\MetricaClientVisits\Models\LogRequest;
 
 final class PollLogRequestJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use UsesMetricaQueuePolicy;
 
     public int $tries = 60;
 
     public function __construct(public readonly int $logRequestId)
     {
+        $this->configureQueueTimeout();
     }
+
+    public function counterId(): string { return (string) LogRequest::query()->whereKey($this->logRequestId)->with('batch')->first()?->batch?->counter_id; }
 
     public function handle(LogsApiClient $api): void
     {
@@ -28,7 +33,14 @@ final class PollLogRequestJob implements ShouldQueue
         if (! in_array($request->status, ['created', 'processing'], true)) {
             return;
         }
-        $response = $api->status((string) $request->batch->counter_id, (string) $request->request_id);
+        try {
+            $response = $api->status((string) $request->batch->counter_id, (string) $request->request_id);
+        } catch (\Throwable $exception) {
+            if ($this->releaseRateLimitedApiFailure($exception)) {
+                return;
+            }
+            throw $exception;
+        }
         $payload = $response['log_request'] ?? $response;
         $status = (string) ($payload['status'] ?? 'created');
 
@@ -38,8 +50,8 @@ final class PollLogRequestJob implements ShouldQueue
             return;
         }
         if (in_array($status, ['failed', 'error'], true)) {
-            $request->update(['status' => 'failed', 'error_message' => "Logs API status: {$status}"]);
-            FinalizeBatchJob::dispatch($request->batch_id)->onQueue((string) config('metrica-client-visits.queue', 'default'));
+            $request->update(['status' => 'cleanup_pending', 'failure_stage' => 'poll', 'error_message' => "Logs API status: {$status}"]);
+            CleanupLogRequestJob::dispatch($request->id)->onQueue((string) config('metrica-client-visits.queue', 'default'));
             return;
         }
 
@@ -54,8 +66,13 @@ final class PollLogRequestJob implements ShouldQueue
     {
         $request = LogRequest::query()->find($this->logRequestId);
         if ($request !== null) {
-            $request->update(['status' => 'failed', 'error_message' => $exception->getMessage()]);
-            FinalizeBatchJob::dispatch($request->batch_id)->onQueue((string) config('metrica-client-visits.queue', 'default'));
+            if ($request->request_id !== null) {
+                $request->update(['status' => 'cleanup_pending', 'failure_stage' => 'poll', 'error_message' => $exception->getMessage()]);
+                CleanupLogRequestJob::dispatch($request->id)->onQueue((string) config('metrica-client-visits.queue', 'default'));
+            } else {
+                $request->update(['status' => 'failed', 'error_message' => $exception->getMessage()]);
+                FinalizeBatchJob::dispatch($request->batch_id)->onQueue((string) config('metrica-client-visits.queue', 'default'));
+            }
         }
     }
 }

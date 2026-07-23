@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace PhpDmitry\MetricaClientVisits;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Support\Facades\RateLimiter;
 use PhpDmitry\MetricaClientVisits\Commands\BatchStatusCommand;
 use PhpDmitry\MetricaClientVisits\Commands\CleanPendingCommand;
 use PhpDmitry\MetricaClientVisits\Commands\StuckRequestsCommand;
@@ -24,6 +26,12 @@ final class MetricaClientVisitsServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        RateLimiter::for('metrica-client-visits', function (object $job): Limit {
+            $counterId = method_exists($job, 'counterId') ? $job->counterId() : 'unknown';
+            return Limit::perMinute((int) config('metrica-client-visits.api_requests_per_minute_per_counter', 30))
+                ->by("metrica-client-visits:counter:{$counterId}");
+        });
+
         $this->publishes([
             __DIR__ . '/../config/metrica-client-visits.php' => config_path('metrica-client-visits.php'),
         ], 'metrica-client-visits-config');

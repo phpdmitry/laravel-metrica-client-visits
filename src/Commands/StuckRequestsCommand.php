@@ -16,7 +16,7 @@ final class StuckRequestsCommand extends Command
     {
         $cutoff = now()->subMinutes((int) $this->option('minutes'));
         $requests = LogRequest::query()
-            ->whereIn('status', ['planned', 'waiting_lock', 'created', 'processing', 'processed', 'downloading', 'downloaded', 'cleanup_pending'])
+            ->whereIn('status', ['planned', 'waiting_lock', 'creating', 'created', 'processing', 'processed', 'downloading', 'downloaded', 'cleanup_pending', 'creation_uncertain', 'creation_ambiguous'])
             ->where('updated_at', '<', $cutoff)
             ->get(['id', 'batch_id', 'request_id', 'status', 'updated_at', 'error_message']);
         if ($requests->isEmpty()) {

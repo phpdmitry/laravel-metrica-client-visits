@@ -11,6 +11,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use PhpDmitry\MetricaClientVisits\Contracts\LogsApiClient;
+use PhpDmitry\MetricaClientVisits\Jobs\Concerns\UsesMetricaQueuePolicy;
 use PhpDmitry\MetricaClientVisits\Models\LogRequest;
 use PhpDmitry\MetricaClientVisits\Models\VisitCandidate;
 use PhpDmitry\MetricaClientVisits\Support\TsvVisitParser;
@@ -18,12 +19,16 @@ use PhpDmitry\MetricaClientVisits\Support\TsvVisitParser;
 final class DownloadLogRequestJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use UsesMetricaQueuePolicy;
 
     public int $tries = 5;
 
     public function __construct(public readonly int $logRequestId)
     {
+        $this->configureQueueTimeout();
     }
+
+    public function counterId(): string { return (string) LogRequest::query()->whereKey($this->logRequestId)->with('batch')->first()?->batch?->counter_id; }
 
     public function handle(LogsApiClient $api, TsvVisitParser $parser): void
     {
@@ -36,6 +41,7 @@ final class DownloadLogRequestJob implements ShouldQueue
         $counterZone = new DateTimeZone((string) config('metrica-client-visits.counter_timezone', 'Europe/Moscow'));
         $goalZone = new DateTimeZone((string) config('metrica-client-visits.goal_timezone', 'Europe/Moscow'));
 
+        try {
         foreach ($request->parts ?? [] as $part) {
             $partNumber = (int) ($part['part_number'] ?? 0);
             $tsv = $api->download((string) $request->batch->counter_id, (string) $request->request_id, $partNumber);
@@ -69,6 +75,12 @@ final class DownloadLogRequestJob implements ShouldQueue
                 }
             }
         }
+        } catch (\Throwable $exception) {
+            if ($this->releaseRateLimitedApiFailure($exception)) {
+                return;
+            }
+            throw $exception;
+        }
 
         $request->update(['status' => 'downloaded']);
         // Итог нужен пользователю даже тогда, когда очистка Logs API временно недоступна.
@@ -80,8 +92,8 @@ final class DownloadLogRequestJob implements ShouldQueue
     {
         $request = LogRequest::query()->find($this->logRequestId);
         if ($request !== null) {
-            $request->update(['status' => 'failed', 'error_message' => $exception->getMessage()]);
-            FinalizeBatchJob::dispatch($request->batch_id)->onQueue((string) config('metrica-client-visits.queue', 'default'));
+            $request->update(['status' => 'cleanup_pending', 'failure_stage' => 'download', 'error_message' => $exception->getMessage()]);
+            CleanupLogRequestJob::dispatch($request->id)->onQueue((string) config('metrica-client-visits.queue', 'default'));
         }
     }
 }

@@ -11,6 +11,10 @@ final class FakeLogsApiClient implements LogsApiClient
     /** @var list<string> */
     public array $calls = [];
     /** @param list<string> $parts */
+    /** @var list<array<string, mixed>> */
+    public array $requests = [];
+    public ?\Throwable $downloadException = null;
+
     public function __construct(public array $parts = [], public bool $possible = true)
     {
     }
@@ -24,6 +28,11 @@ final class FakeLogsApiClient implements LogsApiClient
         $this->calls[] = 'create';
         return ['log_request' => ['request_id' => 999, 'status' => 'created']];
     }
+    public function list(string $counterId): array
+    {
+        $this->calls[] = 'list';
+        return ['requests' => $this->requests];
+    }
     public function status(string $counterId, string $requestId): array
     {
         $this->calls[] = 'status';
@@ -33,6 +42,9 @@ final class FakeLogsApiClient implements LogsApiClient
     public function download(string $counterId, string $requestId, int $partNumber): string
     {
         $this->calls[] = 'download';
+        if ($this->downloadException !== null) {
+            throw $this->downloadException;
+        }
         return $this->parts[$partNumber] ?? '';
     }
     public function clean(string $counterId, string $requestId): void

@@ -11,17 +11,22 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
 use PhpDmitry\MetricaClientVisits\Contracts\LogsApiClient;
+use PhpDmitry\MetricaClientVisits\Jobs\Concerns\UsesMetricaQueuePolicy;
 use PhpDmitry\MetricaClientVisits\Models\LogRequest;
 
 final class CleanupLogRequestJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use UsesMetricaQueuePolicy;
 
     public int $tries = 10;
 
     public function __construct(public readonly int $logRequestId)
     {
+        $this->configureQueueTimeout();
     }
+
+    public function counterId(): string { return (string) LogRequest::query()->whereKey($this->logRequestId)->with('batch')->first()?->batch?->counter_id; }
 
     public function handle(LogsApiClient $api): void
     {
@@ -33,6 +38,9 @@ final class CleanupLogRequestJob implements ShouldQueue
             $api->clean((string) $request->batch->counter_id, (string) $request->request_id);
         } catch (\Throwable $exception) {
             $request->update(['status' => 'cleanup_pending', 'error_message' => $exception->getMessage()]);
+            if ($this->releaseRateLimitedApiFailure($exception)) {
+                return;
+            }
             throw $exception;
         }
 

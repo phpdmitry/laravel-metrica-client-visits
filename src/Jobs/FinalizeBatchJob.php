@@ -10,15 +10,18 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use PhpDmitry\MetricaClientVisits\Models\BatchLookup;
+use PhpDmitry\MetricaClientVisits\Jobs\Concerns\UsesMetricaQueuePolicy;
 use PhpDmitry\MetricaClientVisits\Models\VisitMatch;
 use PhpDmitry\MetricaClientVisits\Services\VisitSelector;
 
 final class FinalizeBatchJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use UsesMetricaQueuePolicy;
 
     public function __construct(public readonly string $batchId)
     {
+        $this->configureQueueTimeout();
     }
 
     public function handle(VisitSelector $selector): void
@@ -27,10 +30,10 @@ final class FinalizeBatchJob implements ShouldQueue
         if ($batch->isCompleted()) {
             return;
         }
-        if ($batch->logRequests->contains(fn ($request): bool => in_array($request->status, ['planned', 'waiting_lock', 'created', 'processing', 'processed', 'downloading'], true))) {
+        if ($batch->logRequests->contains(fn ($request): bool => in_array($request->status, ['planned', 'waiting_lock', 'creating', 'created', 'processing', 'processed', 'downloading'], true))) {
             return;
         }
-        if ($batch->logRequests->contains(fn ($request): bool => $request->status === 'failed')) {
+        if ($batch->logRequests->contains(fn ($request): bool => $request->failure_stage !== null || in_array($request->status, ['failed', 'creation_uncertain', 'creation_ambiguous'], true))) {
             $batch->events()->where('status', 'pending')->update(['status' => 'failed', 'reason' => 'export_failed']);
             $batch->update(['status' => 'failed', 'error_message' => 'Хотя бы один запрос Logs API завершился ошибкой.', 'completed_at' => now()]);
             return;
@@ -54,5 +57,12 @@ final class FinalizeBatchJob implements ShouldQueue
         }
         $hasMissing = $batch->events()->whereIn('status', ['missing', 'goal_not_found'])->exists();
         $batch->update(['status' => $hasMissing ? 'completed_with_missing' : 'completed', 'completed_at' => now()]);
+    }
+
+    public function failed(\Throwable $exception): void
+    {
+        BatchLookup::query()->whereKey($this->batchId)->whereNotIn('status', ['completed', 'completed_with_missing'])->update([
+            'status' => 'failed', 'error_message' => 'Не удалось завершить сопоставление: ' . $exception->getMessage(), 'completed_at' => now(),
+        ]);
     }
 }

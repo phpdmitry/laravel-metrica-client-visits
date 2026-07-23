@@ -21,8 +21,16 @@ return [
 
     'max_events_per_batch' => 1_000,
     'max_parallel_exports_per_counter' => 1,
+    'api_requests_per_minute_per_counter' => 30,
     'max_days_per_export' => 365,
     'polling_delays' => [15, 30, 60, 120],
-    'lock_seconds' => 3_600,
-    'http_timeout_seconds' => 120,
+    'lock_seconds' => 86_400,
+
+    /* Должно соблюдаться: HTTP timeout < job timeout < queue retry_after. */
+    'http_connect_timeout_seconds' => 10,
+    'http_timeout_seconds' => 90,
+    'job_timeout_seconds' => 110,
+    'queue_retry_after_seconds' => 130,
+    'job_backoff_seconds' => [15, 30, 60, 120, 300],
+    'job_retry_until_seconds' => 21_600,
 ];

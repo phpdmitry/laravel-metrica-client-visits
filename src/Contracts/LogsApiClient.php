@@ -13,6 +13,9 @@ interface LogsApiClient
     public function create(string $counterId, string $date1, string $date2, array $fields, string $attribution, string $source = 'visits'): array;
 
     /** @return array<string, mixed> */
+    public function list(string $counterId): array;
+
+    /** @return array<string, mixed> */
     public function status(string $counterId, string $requestId): array;
 
     /** @return resource|string Временный поток TSV или строка (удобно для тестовой реализации). */

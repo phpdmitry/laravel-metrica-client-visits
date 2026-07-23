@@ -25,7 +25,7 @@ php artisan migrate
 Запустите worker:
 
 ```bash
-php artisan queue:work
+php artisan queue:work --timeout=110
 ```
 
 ## Конфигурация
@@ -38,9 +38,12 @@ YANDEX_METRIKA_COUNTER_ID=12345678
 
 QUEUE_CONNECTION=database
 CACHE_STORE=database
+QUEUE_RETRY_AFTER=130
 ```
 
 OAuth `client_id` и `client_secret` этому пакету не нужны: OAuth-flow он намеренно не выполняет. Все опции находятся в `config/metrica-client-visits.php`, в том числе часовой пояс счётчика, цель по умолчанию, лимит параллельных выгрузок и интервалы polling.
+
+Нужно соблюдать: `HTTP timeout (90) < job timeout (110) < QUEUE_RETRY_AFTER (130)`. Параметры `http_timeout_seconds`, `job_timeout_seconds` и `queue_retry_after_seconds` находятся в конфиге пакета; последнее значение служит ориентиром и не переопределяет настройку Laravel автоматически.
 
 ## Использование
 
@@ -75,6 +78,13 @@ php artisan metrica-client-visits:status <batch-uuid>
 php artisan metrica-client-visits:clean-pending
 php artisan metrica-client-visits:stuck --minutes=30
 ```
+
+## Устойчивость к сбоям
+
+- Для HTTP 429 учитывается заголовок `Retry-After`; остальные сетевые и серверные ошибки повторяются с backoff `15, 30, 60, 120, 300` секунд.
+- POST создания выгрузки не повторяется автоматически при неопределённом результате. Сначала пакет получает список Logs-запросов и ищет точное совпадение. При отсутствии или неоднозначности совпадения запрос получает статус `creation_uncertain` или `creation_ambiguous`, а batch — `failed`, без риска создать дубликат.
+- Ошибки polling и загрузки TSV ставят cleanup в очередь: уже созданный удалённый файл очищается даже при неуспешном batch.
+- Внешние запросы ограничены по счётчику через Laravel rate limiter; экспорт дополнительно удерживает cache lock до cleanup.
 
 ## Совместимость и разработка
 
