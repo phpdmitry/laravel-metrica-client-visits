@@ -50,10 +50,10 @@ final class TsvVisitParser
     /** @param array<string, string> $row */
     public function visit(array $row, DateTimeZone $counterTimezone, DateTimeZone $goalTimezone): VisitMatchData
     {
-        $startedAt = new DateTimeImmutable((string) ($row['ym:s:dateTime'] ?? ''), $counterTimezone);
+        $startedAt = $this->dateTime((string) ($row['ym:s:dateTime'] ?? ''), $counterTimezone);
         $goalIds = $this->list($row['ym:s:goalsID'] ?? '');
         $goalTimes = array_map(
-            static fn (string $time): string => (new DateTimeImmutable($time, $goalTimezone))->setTimezone(new DateTimeZone('UTC'))->format(DATE_ATOM),
+            fn (string $time): string => $this->dateTime($time, $goalTimezone)->setTimezone(new DateTimeZone('UTC'))->format(DATE_ATOM),
             $this->list($row['ym:s:goalsDateTime'] ?? ''),
         );
 
@@ -71,6 +71,22 @@ final class TsvVisitParser
             goalIds: array_map('intval', $goalIds),
             goalTimes: $goalTimes,
         );
+    }
+
+    private function dateTime(string $value, DateTimeZone $timezone): DateTimeImmutable
+    {
+        return new DateTimeImmutable($this->unwrapDateTime($value), $timezone);
+    }
+
+    private function unwrapDateTime(string $value): string
+    {
+        foreach (['"', '\\"', "\\'"] as $enclosure) {
+            if (str_starts_with($value, $enclosure) && str_ends_with($value, $enclosure)) {
+                return substr($value, strlen($enclosure), -strlen($enclosure));
+            }
+        }
+
+        return $value;
     }
 
     /** @return list<string> */

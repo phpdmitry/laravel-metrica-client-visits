@@ -27,10 +27,12 @@ final class HttpLogsApiClient implements LogsApiClient
 
     public function create(string $counterId, string $date1, string $date2, array $fields, string $attribution, string $source = 'visits'): array
     {
-        return $this->json('post', $this->url($counterId, 'logrequests'), [
+        $query = http_build_query([
             'date1' => $date1, 'date2' => $date2, 'fields' => implode(',', $fields),
             'source' => $source, 'attribution' => $attribution,
-        ], $counterId);
+        ]);
+
+        return $this->json('post', $this->url($counterId, 'logrequests') . '?' . $query, [], $counterId);
     }
 
     public function status(string $counterId, string $requestId): array
