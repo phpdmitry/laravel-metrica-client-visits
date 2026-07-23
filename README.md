@@ -38,12 +38,12 @@ YANDEX_METRIKA_COUNTER_ID=12345678
 
 QUEUE_CONNECTION=database
 CACHE_STORE=database
-QUEUE_RETRY_AFTER=130
+DB_QUEUE_RETRY_AFTER=130
 ```
 
 OAuth `client_id` и `client_secret` этому пакету не нужны: OAuth-flow он намеренно не выполняет. Все опции находятся в `config/metrica-client-visits.php`, в том числе часовой пояс счётчика, цель по умолчанию, лимит параллельных выгрузок и интервалы polling.
 
-Нужно соблюдать: `HTTP timeout (90) < job timeout (110) < QUEUE_RETRY_AFTER (130)`. Параметры `http_timeout_seconds`, `job_timeout_seconds` и `queue_retry_after_seconds` находятся в конфиге пакета; последнее значение служит ориентиром и не переопределяет настройку Laravel автоматически.
+Нужно соблюдать: `HTTP timeout (90) < job timeout (110) < DB_QUEUE_RETRY_AFTER (130)`. Параметры `http_timeout_seconds`, `job_timeout_seconds` и `queue_retry_after_seconds` находятся в конфиге пакета; последнее значение служит ориентиром и не переопределяет настройку Laravel автоматически.
 
 ## Использование
 
