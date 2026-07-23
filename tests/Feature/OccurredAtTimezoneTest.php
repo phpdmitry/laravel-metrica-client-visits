@@ -84,6 +84,7 @@ final class OccurredAtTimezoneTest extends TestCase
         self::assertSame($inputTimestamp, $event->occurred_at->utc()->timestamp);
         self::assertSame($inputTimestamp - 5, $candidate->started_at->utc()->timestamp);
         self::assertSame($candidate->id, $event->match->candidate_id);
+        self::assertSame($candidate->started_at->utc()->timestamp, $event->match->visit_started_at->utc()->timestamp);
         self::assertSame('visit_contains_event', $event->match->match_type);
     }
 
