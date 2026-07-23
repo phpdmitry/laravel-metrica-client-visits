@@ -1,0 +1,16 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PhpDmitry\MetricaClientVisits\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+final class VisitCandidate extends Model
+{
+    protected $table = 'metrica_visit_candidates';
+    protected $guarded = [];
+    protected $casts = ['started_at' => 'datetime', 'goal_ids' => 'array', 'goal_times' => 'array'];
+    public function event(): BelongsTo { return $this->belongsTo(StoredClientEvent::class, 'event_id'); }
+}

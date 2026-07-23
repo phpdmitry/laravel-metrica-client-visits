@@ -1,0 +1,54 @@
+{
+  "name": "phpdmitry/laravel-metrica-client-visits",
+  "description": "Асинхронный поиск источников визитов Яндекс.Метрики по ClientID для Laravel.",
+  "type": "library",
+  "license": "MIT",
+  "keywords": ["laravel", "yandex", "metrica", "logs-api", "clientid"],
+  "autoload": {
+    "psr-4": {
+      "PhpDmitry\\MetricaClientVisits\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "PhpDmitry\\MetricaClientVisits\\Tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "PhpDmitry\\MetricaClientVisits\\MetricaClientVisitsServiceProvider"
+      ],
+      "aliases": {
+        "MetricaClientVisits": "PhpDmitry\\MetricaClientVisits\\Facades\\MetricaClientVisits"
+      }
+    }
+  },
+  "require": {
+    "php": "^8.2",
+    "illuminate/bus": "^12.0 || ^13.0",
+    "illuminate/cache": "^12.0 || ^13.0",
+    "illuminate/console": "^12.0 || ^13.0",
+    "illuminate/database": "^12.0 || ^13.0",
+    "illuminate/http": "^12.0 || ^13.0",
+    "illuminate/queue": "^12.0 || ^13.0",
+    "illuminate/support": "^12.0 || ^13.0"
+  },
+  "require-dev": {
+    "orchestra/testbench": "^10.0 || ^11.0",
+    "phpunit/phpunit": "^11.0"
+  },
+  "scripts": {
+    "test": "vendor/bin/phpunit",
+    "test:coverage": "vendor/bin/phpunit --coverage-text",
+    "analyse": "php -l src/MetricaClientVisitsServiceProvider.php"
+  },
+  "config": {
+    "sort-packages": true,
+    "allow-plugins": {
+      "pestphp/pest-plugin": true
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
