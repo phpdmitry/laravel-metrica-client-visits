@@ -12,11 +12,14 @@ use PhpDmitry\MetricaClientVisits\Models\VisitCandidate;
 final class VisitSelector
 {
     /** @param Collection<int, VisitCandidate> $candidates @return array{candidate:?VisitCandidate,match_type:?string,confidence:?string,reason:?string,goal_confirmed:bool} */
-    public function select(StoredClientEvent $event, Collection $candidates, int $lookbackDays, int $toleranceSeconds, ?int $defaultGoalId): array
+    public function select(StoredClientEvent $event, Collection $candidates, int $lookbackDays, int $toleranceSeconds, ?int $defaultGoalId, string $strategy = 'last'): array
     {
+        if (! in_array($strategy, ['last', 'first'], true)) {
+            throw new \InvalidArgumentException('Стратегия выбора должна быть last или first.');
+        }
         $occurredAt = CarbonImmutable::parse($event->occurred_at)->utc();
         $goalId = $event->disable_goal_check ? null : ($event->goal_id ?? $defaultGoalId);
-        $temporal = $this->temporalCandidate($candidates, $occurredAt, $lookbackDays, $toleranceSeconds);
+        $temporal = $this->temporalCandidate($candidates, $occurredAt, $lookbackDays, $toleranceSeconds, $strategy);
 
         if ($goalId !== null) {
             $goalCandidate = $candidates
@@ -31,8 +34,7 @@ final class VisitSelector
                     }
                     return $this->covers($candidate, $occurredAt, $toleranceSeconds);
                 })
-                ->sortByDesc('started_at')
-                ->first();
+                ->pipe(fn (Collection $matches): ?VisitCandidate => $this->choose($matches, $strategy));
 
             if ($goalCandidate instanceof VisitCandidate) {
                 return ['candidate' => $goalCandidate, 'match_type' => 'goal_confirmed', 'confidence' => 'high', 'reason' => null, 'goal_confirmed' => true];
@@ -53,18 +55,24 @@ final class VisitSelector
     }
 
     /** @param Collection<int, VisitCandidate> $candidates */
-    private function temporalCandidate(Collection $candidates, CarbonImmutable $occurredAt, int $lookbackDays, int $toleranceSeconds): ?VisitCandidate
+    private function temporalCandidate(Collection $candidates, CarbonImmutable $occurredAt, int $lookbackDays, int $toleranceSeconds, string $strategy): ?VisitCandidate
     {
-        $covering = $candidates->filter(fn (VisitCandidate $candidate): bool => $this->covers($candidate, $occurredAt, $toleranceSeconds))->sortByDesc('started_at')->first();
+        $covering = $this->choose($candidates->filter(fn (VisitCandidate $candidate): bool => $this->covers($candidate, $occurredAt, $toleranceSeconds)), $strategy);
         if ($covering instanceof VisitCandidate) {
             return $covering;
         }
 
         $oldest = $occurredAt->subDays($lookbackDays);
-        return $candidates->filter(function (VisitCandidate $candidate) use ($occurredAt, $oldest): bool {
+        return $this->choose($candidates->filter(function (VisitCandidate $candidate) use ($occurredAt, $oldest): bool {
             $started = CarbonImmutable::parse($candidate->started_at)->utc();
             return $started <= $occurredAt && $started >= $oldest;
-        })->sortByDesc('started_at')->first();
+        }), $strategy);
+    }
+
+    /** @param Collection<int, VisitCandidate> $candidates */
+    private function choose(Collection $candidates, string $strategy): ?VisitCandidate
+    {
+        return ($strategy === 'first' ? $candidates->sortBy('started_at') : $candidates->sortByDesc('started_at'))->first();
     }
 
     private function covers(VisitCandidate $candidate, CarbonImmutable $occurredAt, int $toleranceSeconds): bool

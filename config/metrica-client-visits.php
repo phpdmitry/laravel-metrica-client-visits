@@ -14,6 +14,8 @@ return [
     'default_lookback_days' => 30,
     'default_time_tolerance_seconds' => 120,
     'default_goal_id' => env('METRICA_CLIENT_VISITS_GOAL_ID'),
+    /* last сохраняет прежний выбор: самый поздний подходящий визит. first — самый ранний. */
+    'default_selection_strategy' => env('METRICA_CLIENT_VISITS_SELECTION_STRATEGY', 'last'),
 
     /* Все timestamps входных событий — UTC. dateTime визита приходит в TZ счётчика. */
     'counter_timezone' => env('METRICA_CLIENT_VISITS_COUNTER_TIMEZONE', 'Europe/Moscow'),

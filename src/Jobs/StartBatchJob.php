@@ -90,6 +90,6 @@ final class StartBatchJob implements ShouldQueue
 
     public function failed(\Throwable $exception): void
     {
-        BatchLookup::query()->whereKey($this->batchId)->update(['status' => 'failed', 'error_message' => $exception->getMessage(), 'completed_at' => now()]);
+        BatchLookup::query()->whereKey($this->batchId)->update(['status' => 'failed', 'active_fingerprint' => BatchLookup::releasedFingerprint($this->batchId), 'error_message' => $exception->getMessage(), 'completed_at' => now()]);
     }
 }

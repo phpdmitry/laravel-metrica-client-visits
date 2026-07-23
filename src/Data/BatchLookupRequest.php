@@ -16,6 +16,7 @@ final readonly class BatchLookupRequest
         public string|null $attribution = null,
         public int|null $lookbackDays = null,
         public int|null $timeToleranceSeconds = null,
+        public string|null $selectionStrategy = null,
     ) {
         if ($this->events === []) {
             throw new InvalidArgumentException('В batch должен быть хотя бы один ClientEvent.');
@@ -36,6 +37,9 @@ final readonly class BatchLookupRequest
         }
         if ($this->timeToleranceSeconds !== null && $this->timeToleranceSeconds < 0) {
             throw new InvalidArgumentException('timeToleranceSeconds не может быть отрицательным.');
+        }
+        if ($this->selectionStrategy !== null && ! in_array($this->selectionStrategy, ['last', 'first'], true)) {
+            throw new InvalidArgumentException('selectionStrategy должен быть last или first.');
         }
     }
 }

@@ -7,6 +7,7 @@ namespace PhpDmitry\MetricaClientVisits\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 final class BatchLookup extends Model
 {
@@ -23,8 +24,15 @@ final class BatchLookup extends Model
 
     /** @return HasMany<VisitMatch, $this> */
     public function matches(): HasMany { return $this->hasMany(VisitMatch::class, 'batch_id'); }
+    /** @return HasManyThrough<VisitCandidate, StoredClientEvent, $this> */
+    public function candidates(): HasManyThrough
+    {
+        return $this->hasManyThrough(VisitCandidate::class, StoredClientEvent::class, 'batch_id', 'event_id')
+            ->orderBy('metrica_visit_candidates.started_at');
+    }
     public function status(): string { return $this->status; }
     public function isCompleted(): bool { return in_array($this->status, ['completed', 'completed_with_missing', 'failed'], true); }
+    public static function releasedFingerprint(string $batchId): string { return 'released:' . $batchId; }
     public function missingEvents(): HasMany { return $this->events()->whereIn('status', ['missing', 'goal_not_found']); }
     public function failedEvents(): HasMany { return $this->events()->where('status', 'failed'); }
 }

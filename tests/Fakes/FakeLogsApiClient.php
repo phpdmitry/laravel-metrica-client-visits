@@ -13,7 +13,10 @@ final class FakeLogsApiClient implements LogsApiClient
     /** @param list<string> $parts */
     /** @var list<array<string, mixed>> */
     public array $requests = [];
+    /** @var list<list<string>> Части TSV для последовательных созданных выгрузок. */
+    public array $exports = [];
     public ?\Throwable $downloadException = null;
+    private int $createdExports = 0;
 
     public function __construct(public array $parts = [], public bool $possible = true)
     {
@@ -26,7 +29,8 @@ final class FakeLogsApiClient implements LogsApiClient
     public function create(string $counterId, string $date1, string $date2, array $fields, string $attribution, string $source = 'visits'): array
     {
         $this->calls[] = 'create';
-        return ['log_request' => ['request_id' => 999, 'status' => 'created']];
+        $requestId = 999 + $this->createdExports++;
+        return ['log_request' => ['request_id' => $requestId, 'status' => 'created']];
     }
     public function list(string $counterId): array
     {
@@ -36,8 +40,9 @@ final class FakeLogsApiClient implements LogsApiClient
     public function status(string $counterId, string $requestId): array
     {
         $this->calls[] = 'status';
-        $parts = array_map(static fn (string $part, int $number): array => ['part_number' => $number, 'size' => strlen($part)], $this->parts, array_keys($this->parts));
-        return ['log_request' => ['request_id' => 999, 'status' => 'processed', 'size' => array_sum(array_map('strlen', $this->parts)), 'parts' => $parts]];
+        $export = $this->partsForRequest($requestId);
+        $parts = array_map(static fn (string $part, int $number): array => ['part_number' => $number, 'size' => strlen($part)], $export, array_keys($export));
+        return ['log_request' => ['request_id' => $requestId, 'status' => 'processed', 'size' => array_sum(array_map('strlen', $export)), 'parts' => $parts]];
     }
     public function download(string $counterId, string $requestId, int $partNumber): string
     {
@@ -45,10 +50,16 @@ final class FakeLogsApiClient implements LogsApiClient
         if ($this->downloadException !== null) {
             throw $this->downloadException;
         }
-        return $this->parts[$partNumber] ?? '';
+        return $this->partsForRequest($requestId)[$partNumber] ?? '';
     }
     public function clean(string $counterId, string $requestId): void
     {
         $this->calls[] = 'clean';
+    }
+
+    /** @return list<string> */
+    private function partsForRequest(string $requestId): array
+    {
+        return $this->exports[(int) $requestId - 999] ?? $this->parts;
     }
 }

@@ -2,7 +2,7 @@
 
 Пакет для Laravel 12–13, который находит источник визита Яндекс.Метрики по `ClientID` и времени события. Он не является SDK Метрики: поддерживает только batch-поиск визитов через Logs API.
 
-Вход — список событий `ClientID + Unix timestamp (UTC)`. Пакет строит один или несколько периодов выгрузки, асинхронно получает TSV через Logs API, оставляет только визиты нужных клиентов, выбирает подходящий визит и очищает временную выгрузку в Метрике.
+Вход — список событий `ClientID + Unix timestamp (UTC)`. Пакет строит один или несколько периодов выгрузки, асинхронно получает TSV через Logs API, сохраняет все визиты нужных клиентов, выбирает подходящий визит и очищает временную выгрузку в Метрике.
 
 Полные логи счётчика не сохраняются.
 
@@ -64,10 +64,47 @@ $batch = app(ClientEventMatcher::class)->start(new BatchLookupRequest(
     attribution: 'last',
     lookbackDays: 30,
     timeToleranceSeconds: 120,
+    // selectionStrategy: 'first', // необязательно; по умолчанию — 'last'
 ));
 ```
 
-Методы `$batch->status()`, `$batch->isCompleted()`, `$batch->matches()`, `$batch->missingEvents()` и `$batch->failedEvents()` дают состояние задачи и результаты. В `metrica_visit_matches` доступны нормализованные поля: `source`, `source_detail`, `utm_source`, `utm_medium`, `utm_campaign`, `referrer`, `start_url` — без ключей `<attribution>` из ответа Logs API.
+Методы `$batch->status()`, `$batch->isCompleted()`, `$batch->matches()`, `$batch->missingEvents()` и `$batch->failedEvents()` дают состояние задачи и результаты. `$batch->matches()` сохраняет один лучший визит для обратной совместимости. В `metrica_visit_matches` доступны нормализованные поля: `source`, `source_detail`, `utm_source`, `utm_medium`, `utm_campaign`, `referrer`, `start_url` — без ключей `<attribution>` из ответа Logs API.
+
+### Все визиты и история повторных запросов
+
+Каждый визит нужного `ClientID`, найденный в выгрузке, сохраняется как `VisitCandidate`, даже если он не станет лучшим совпадением. Кандидаты в batch отсортированы от раннего визита к позднему:
+
+```php
+$candidates = $batch->candidates()->get();
+
+foreach ($candidates as $visit) {
+    $visit->visit_id;
+    $visit->visit_started_at;
+    $visit->duration_seconds;
+    $visit->source;
+    $visit->source_detail;
+    $visit->utm_source;
+    $visit->utm_medium;
+    $visit->utm_campaign;
+    $visit->referrer;
+    $visit->start_url;
+    $visit->goal_ids;
+    $visit->goal_times;
+}
+```
+
+`externalId` — стабильный бизнесовый идентификатор: менять его для повторного поиска не нужно. Новый `start()` с теми же параметрами создаёт новую выгрузку, если предыдущий batch уже завершён или завершился ошибкой. Только одновременно активный идентичный batch (`queued`, `planning`, `exporting`) возвращается повторно и не запускает второй экспорт.
+
+Чтобы получить объединённую историю по `externalId`, включая результаты повторных выгрузок, используйте:
+
+```php
+$visits = app(ClientEventMatcher::class)
+    ->candidatesForExternalId('amo-deal-123');
+```
+
+В этом списке один `visit_id` встречается только один раз; при повторной загрузке сохраняются более актуальные данные. Результат также отсортирован от раннего визита к позднему.
+
+По умолчанию селектор сохраняет прежнее поведение и выбирает самый поздний подходящий визит (`last`). Для отдельного batch можно указать `selectionStrategy: 'first'`; это влияет только на `VisitMatch`, а не на сохранение всех `VisitCandidate`.
 
 Если указана цель, точным совпадением считается достижение этой цели рядом со временем события. Если цели в логе нет, событие получает `reason = goal_not_found`, но лучший временной кандидат всё равно сохраняется как `temporal_candidate`.
 

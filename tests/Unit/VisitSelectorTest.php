@@ -38,4 +38,16 @@ final class VisitSelectorTest extends TestCase
         self::assertSame('goal_confirmed', $result['match_type']);
         self::assertTrue($result['goal_confirmed']);
     }
+
+    #[Test]
+    public function it_can_optionally_select_the_first_matching_visit(): void
+    {
+        $event = new StoredClientEvent(['occurred_at' => CarbonImmutable::parse('2026-04-28 14:32:00 UTC'), 'disable_goal_check' => true]);
+        $early = new VisitCandidate(['id' => 1, 'started_at' => CarbonImmutable::parse('2026-04-28 14:00:00 UTC'), 'duration_seconds' => 3_600]);
+        $late = new VisitCandidate(['id' => 2, 'started_at' => CarbonImmutable::parse('2026-04-28 14:30:00 UTC'), 'duration_seconds' => 30]);
+
+        $result = (new VisitSelector())->select($event, new Collection([$early, $late]), 30, 120, null, 'first');
+
+        self::assertSame($early->id, $result['candidate']->id);
+    }
 }
