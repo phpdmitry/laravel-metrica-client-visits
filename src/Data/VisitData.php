@@ -6,11 +6,13 @@ namespace PhpDmitry\MetricaClientVisits\Data;
 
 use DateTimeInterface;
 
-final readonly class VisitMatchData
+/** Нормализованная строка TSV Logs API. */
+final readonly class VisitData
 {
-    /** @param array<int, int> $goalIds */
+    /** @param list<int> $goalIds @param list<string> $goalTimes */
     public function __construct(
         public string $visitId,
+        public string $clientId,
         public DateTimeInterface $startedAt,
         public int $durationSeconds,
         public ?string $source,
@@ -22,6 +24,5 @@ final readonly class VisitMatchData
         public ?string $startUrl,
         public array $goalIds = [],
         public array $goalTimes = [],
-    ) {
-    }
+    ) {}
 }

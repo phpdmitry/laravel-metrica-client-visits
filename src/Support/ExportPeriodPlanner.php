@@ -7,15 +7,15 @@ namespace PhpDmitry\MetricaClientVisits\Support;
 use DateInterval;
 use DateTimeImmutable;
 use DateTimeZone;
-use PhpDmitry\MetricaClientVisits\Data\ClientEvent;
+use PhpDmitry\MetricaClientVisits\Data\VisitLookup;
 
 final class ExportPeriodPlanner
 {
-    /** @param list<ClientEvent> $events @return list<array{date1:string,date2:string}> */
+    /** @param list<VisitLookup> $events @return list<array{date1:string,date2:string}> */
     public function initialPeriods(array $events, int $lookbackDays, int $toleranceSeconds, int $maxDays): array
     {
         $zone = new DateTimeZone('UTC');
-        $times = array_map(static fn (ClientEvent $event): DateTimeImmutable => $event->occurredAt(), $events);
+        $times = array_map(static fn (VisitLookup $event): DateTimeImmutable => $event->occurredAt(), $events);
         usort($times, static fn (DateTimeImmutable $a, DateTimeImmutable $b): int => $a <=> $b);
 
         $from = $times[0]->sub(new DateInterval("P{$lookbackDays}D"));

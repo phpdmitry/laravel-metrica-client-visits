@@ -7,15 +7,15 @@ namespace PhpDmitry\MetricaClientVisits\Tests\Feature;
 use Illuminate\Support\Facades\Queue;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
-use PhpDmitry\MetricaClientVisits\ClientEventMatcher;
 use PhpDmitry\MetricaClientVisits\Contracts\LogsApiClient;
-use PhpDmitry\MetricaClientVisits\Data\BatchLookupRequest;
-use PhpDmitry\MetricaClientVisits\Data\ClientEvent;
+use PhpDmitry\MetricaClientVisits\Data\VisitImportRequest;
+use PhpDmitry\MetricaClientVisits\Data\VisitLookup;
 use PhpDmitry\MetricaClientVisits\Jobs\StartBatchJob;
-use PhpDmitry\MetricaClientVisits\Models\StoredClientEvent;
+use PhpDmitry\MetricaClientVisits\Models\VisitEvent;
 use PhpDmitry\MetricaClientVisits\Support\ExportPeriodPlanner;
 use PhpDmitry\MetricaClientVisits\Tests\Fakes\FakeLogsApiClient;
 use PhpDmitry\MetricaClientVisits\Tests\TestCase;
+use PhpDmitry\MetricaClientVisits\VisitImporter;
 
 final class OccurredAtTimezoneTest extends TestCase
 {
@@ -45,16 +45,16 @@ final class OccurredAtTimezoneTest extends TestCase
         $this->app->instance(LogsApiClient::class, $api);
         $inputTimestamp = 1_763_547_720;
 
-        $batch = $this->app->make(ClientEventMatcher::class)->start(new BatchLookupRequest([
-            new ClientEvent('timezone-event-' . $timezone, '1763547719182326239', $inputTimestamp),
+        $batch = $this->app->make(VisitImporter::class)->start(new VisitImportRequest([
+            new VisitLookup('1763547719182326239', $inputTimestamp, 'timezone-event-' . $timezone),
         ]));
 
-        $stored = StoredClientEvent::query()->where('batch_id', $batch->id)->sole();
+        $stored = VisitEvent::query()->where('batch_id', $batch->id)->sole();
         self::assertSame($inputTimestamp, $stored->occurred_at->utc()->timestamp);
 
         (new StartBatchJob($batch->id))->handle($api, $this->app->make(ExportPeriodPlanner::class));
 
-        $stored = StoredClientEvent::query()->findOrFail($stored->id);
+        $stored = VisitEvent::query()->findOrFail($stored->id);
         self::assertSame($inputTimestamp, $stored->occurred_at->utc()->timestamp);
     }
 
@@ -73,19 +73,18 @@ final class OccurredAtTimezoneTest extends TestCase
         $api = new FakeLogsApiClient([$this->tsv('2025-11-19 13:21:55', '54')]);
         $this->app->instance(LogsApiClient::class, $api);
 
-        $batch = $this->app->make(ClientEventMatcher::class)->start(new BatchLookupRequest([
-            new ClientEvent('timezone-match', '1763547719182326239', $inputTimestamp),
+        $batch = $this->app->make(VisitImporter::class)->start(new VisitImportRequest([
+            new VisitLookup('1763547719182326239', $inputTimestamp, 'timezone-match'),
         ]));
         $batch->refresh();
-        $event = $batch->events()->with(['candidates', 'match'])->sole();
-        $candidate = $event->candidates->sole();
+        $event = $batch->events()->with(['visits', 'primaryVisit'])->sole();
+        $candidate = $event->visits->sole();
 
         self::assertSame('completed', $batch->status);
         self::assertSame($inputTimestamp, $event->occurred_at->utc()->timestamp);
         self::assertSame($inputTimestamp - 5, $candidate->started_at->utc()->timestamp);
-        self::assertSame($candidate->id, $event->match->candidate_id);
-        self::assertSame($candidate->started_at->utc()->timestamp, $event->match->visit_started_at->utc()->timestamp);
-        self::assertSame('visit_contains_event', $event->match->match_type);
+        self::assertSame($candidate->id, $event->primaryVisit->id);
+        self::assertSame('matched', $event->status);
     }
 
     private function useApplicationTimezone(string $timezone): void

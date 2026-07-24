@@ -13,7 +13,7 @@ use Illuminate\Queue\SerializesModels;
 use PhpDmitry\MetricaClientVisits\Contracts\LogsApiClient;
 use PhpDmitry\MetricaClientVisits\Jobs\Concerns\UsesMetricaQueuePolicy;
 use PhpDmitry\MetricaClientVisits\Models\LogRequest;
-use PhpDmitry\MetricaClientVisits\Models\VisitCandidate;
+use PhpDmitry\MetricaClientVisits\Models\Visit;
 use PhpDmitry\MetricaClientVisits\Support\TsvVisitParser;
 
 final class DownloadLogRequestJob implements ShouldQueue
@@ -55,18 +55,19 @@ final class DownloadLogRequestJob implements ShouldQueue
                     if ($visit->visitId === '') {
                         continue;
                     }
+                    $stored = Visit::query()->updateOrCreate(
+                        ['counter_id' => (string) $request->batch->counter_id, 'visit_id' => $visit->visitId],
+                        [
+                            'client_id' => $visit->clientId, 'started_at' => $visit->startedAt,
+                            'duration_seconds' => $visit->durationSeconds, 'source' => $visit->source,
+                            'source_detail' => $visit->sourceDetail, 'utm_source' => $visit->utmSource,
+                            'utm_medium' => $visit->utmMedium, 'utm_campaign' => $visit->utmCampaign,
+                            'referrer' => $visit->referrer, 'start_url' => $visit->startUrl,
+                            'goal_ids' => $visit->goalIds, 'goal_times' => $visit->goalTimes,
+                        ],
+                    );
                     foreach ($eventsByClientId->get($clientId) as $event) {
-                        VisitCandidate::query()->updateOrCreate(
-                            ['event_id' => $event->id, 'visit_id' => $visit->visitId],
-                            [
-                                'log_request_id' => $request->id, 'started_at' => $visit->startedAt,
-                                'duration_seconds' => $visit->durationSeconds, 'source' => $visit->source,
-                                'source_detail' => $visit->sourceDetail, 'utm_source' => $visit->utmSource,
-                                'utm_medium' => $visit->utmMedium, 'utm_campaign' => $visit->utmCampaign,
-                                'referrer' => $visit->referrer, 'start_url' => $visit->startUrl,
-                                'goal_ids' => $visit->goalIds, 'goal_times' => $visit->goalTimes,
-                            ],
-                        );
+                        $event->visits()->syncWithoutDetaching([$stored->id => ['log_request_id' => $request->id]]);
                     }
                 }
             } finally {

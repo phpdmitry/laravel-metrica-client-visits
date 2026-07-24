@@ -8,14 +8,14 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Test;
-use PhpDmitry\MetricaClientVisits\ClientEventMatcher;
-use PhpDmitry\MetricaClientVisits\Data\BatchLookupRequest;
-use PhpDmitry\MetricaClientVisits\Data\ClientEvent;
+use PhpDmitry\MetricaClientVisits\Data\VisitImportRequest;
+use PhpDmitry\MetricaClientVisits\Data\VisitLookup;
 use PhpDmitry\MetricaClientVisits\Jobs\CreateLogRequestJob;
 use PhpDmitry\MetricaClientVisits\Jobs\StartBatchJob;
 use PhpDmitry\MetricaClientVisits\Support\ExportPeriodPlanner;
 use PhpDmitry\MetricaClientVisits\Tests\Fakes\FakeLogsApiClient;
 use PhpDmitry\MetricaClientVisits\Tests\TestCase;
+use PhpDmitry\MetricaClientVisits\VisitImporter;
 
 final class DatabaseDriversTest extends TestCase
 {
@@ -37,7 +37,7 @@ final class DatabaseDriversTest extends TestCase
         $this->app['config']->set('cache.stores.database', ['driver' => 'database', 'table' => 'cache', 'connection' => 'testing', 'lock_connection' => 'testing']);
         $this->app['config']->set('metrica-client-visits.cache_store', 'database');
 
-        $batch = $this->app->make(ClientEventMatcher::class)->start(new BatchLookupRequest([new ClientEvent('deal-1', '1234567890123456789', 1_777_391_920)]));
+        $batch = $this->app->make(VisitImporter::class)->start(new VisitImportRequest([new VisitLookup('1234567890123456789', 1_777_391_920)]));
         self::assertDatabaseCount('jobs', 1);
 
         $api = new FakeLogsApiClient([]);

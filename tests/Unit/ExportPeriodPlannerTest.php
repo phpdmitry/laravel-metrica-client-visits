@@ -6,7 +6,7 @@ namespace PhpDmitry\MetricaClientVisits\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use PhpDmitry\MetricaClientVisits\Data\ClientEvent;
+use PhpDmitry\MetricaClientVisits\Data\VisitLookup;
 use PhpDmitry\MetricaClientVisits\Support\ExportPeriodPlanner;
 
 final class ExportPeriodPlannerTest extends TestCase
@@ -15,8 +15,8 @@ final class ExportPeriodPlannerTest extends TestCase
     public function it_builds_and_splits_export_period(): void
     {
         $periods = (new ExportPeriodPlanner())->initialPeriods([
-            new ClientEvent('a', '1234567890123456789', 1_714_323_529),
-            new ClientEvent('b', '1234567890123456790', 1_714_409_929),
+            new VisitLookup('1234567890123456789', 1_714_323_529),
+            new VisitLookup('1234567890123456790', 1_714_409_929),
         ], 2, 120, 2);
 
         self::assertSame('2024-04-26', $periods[0]['date1']);

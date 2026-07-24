@@ -10,7 +10,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use PhpDmitry\MetricaClientVisits\Contracts\LogsApiClient;
-use PhpDmitry\MetricaClientVisits\Data\ClientEvent;
+use PhpDmitry\MetricaClientVisits\Data\VisitLookup;
 use PhpDmitry\MetricaClientVisits\Jobs\Concerns\UsesMetricaQueuePolicy;
 use PhpDmitry\MetricaClientVisits\Models\BatchLookup;
 use PhpDmitry\MetricaClientVisits\Support\ExportPeriodPlanner;
@@ -41,7 +41,7 @@ final class StartBatchJob implements ShouldQueue
         }
         try {
             $batch->update(['status' => 'planning']);
-            $events = $batch->events->map(fn ($event): ClientEvent => new ClientEvent($event->external_id, $event->client_id, $event->occurred_at->utc()->getTimestamp(), $event->goal_id, $event->disable_goal_check))->all();
+            $events = $batch->events->map(fn ($event): VisitLookup => new VisitLookup($event->client_id, $event->occurred_at->utc()->getTimestamp(), $event->event_name, $event->goal_id))->all();
             $periods = $planner->initialPeriods($events, (int) $batch->lookback_days, (int) $batch->time_tolerance_seconds, (int) config('metrica-client-visits.max_days_per_export', 365));
             $planned = [];
 

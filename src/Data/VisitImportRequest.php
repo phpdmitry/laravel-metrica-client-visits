@@ -7,23 +7,23 @@ namespace PhpDmitry\MetricaClientVisits\Data;
 use InvalidArgumentException;
 use PhpDmitry\MetricaClientVisits\Support\Attribution;
 
-final readonly class BatchLookupRequest
+final readonly class VisitImportRequest
 {
-    /** @param list<ClientEvent> $events */
+    /** @param list<VisitLookup> $lookups */
     public function __construct(
-        public array $events,
+        public array $lookups,
         public string|int|null $counterId = null,
         public string|null $attribution = null,
         public int|null $lookbackDays = null,
         public int|null $timeToleranceSeconds = null,
         public string|null $selectionStrategy = null,
     ) {
-        if ($this->events === []) {
-            throw new InvalidArgumentException('В batch должен быть хотя бы один ClientEvent.');
+        if ($this->lookups === []) {
+            throw new InvalidArgumentException('В import должен быть хотя бы один VisitLookup.');
         }
-        foreach ($this->events as $event) {
-            if (! $event instanceof ClientEvent) {
-                throw new InvalidArgumentException('events должен содержать только ClientEvent.');
+        foreach ($this->lookups as $lookup) {
+            if (! $lookup instanceof VisitLookup) {
+                throw new InvalidArgumentException('lookups должен содержать только VisitLookup.');
             }
         }
         if ($this->counterId !== null && preg_match('/^\d+$/', (string) $this->counterId) !== 1) {

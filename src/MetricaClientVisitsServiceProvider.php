@@ -20,8 +20,8 @@ final class MetricaClientVisitsServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__ . '/../config/metrica-client-visits.php', 'metrica-client-visits');
 
         $this->app->singleton(LogsApiClient::class, HttpLogsApiClient::class);
-        $this->app->singleton(ClientEventMatcher::class);
-        $this->app->alias(ClientEventMatcher::class, 'metrica-client-visits');
+        $this->app->singleton(VisitImporter::class);
+        $this->app->alias(VisitImporter::class, 'metrica-client-visits');
     }
 
     public function boot(): void

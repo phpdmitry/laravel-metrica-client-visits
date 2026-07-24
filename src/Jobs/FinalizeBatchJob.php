@@ -11,7 +11,6 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use PhpDmitry\MetricaClientVisits\Models\BatchLookup;
 use PhpDmitry\MetricaClientVisits\Jobs\Concerns\UsesMetricaQueuePolicy;
-use PhpDmitry\MetricaClientVisits\Models\VisitMatch;
 use PhpDmitry\MetricaClientVisits\Services\VisitSelector;
 
 final class FinalizeBatchJob implements ShouldQueue
@@ -26,7 +25,7 @@ final class FinalizeBatchJob implements ShouldQueue
 
     public function handle(VisitSelector $selector): void
     {
-        $batch = BatchLookup::query()->with(['events.candidates', 'logRequests'])->findOrFail($this->batchId);
+        $batch = BatchLookup::query()->with(['events.visits', 'logRequests'])->findOrFail($this->batchId);
         if ($batch->isCompleted()) {
             return;
         }
@@ -40,20 +39,13 @@ final class FinalizeBatchJob implements ShouldQueue
         }
 
         foreach ($batch->events as $event) {
-            $result = $selector->select($event, $event->candidates, (int) $batch->lookback_days, (int) $batch->time_tolerance_seconds, config('metrica-client-visits.default_goal_id') ? (int) config('metrica-client-visits.default_goal_id') : null, (string) $batch->selection_strategy);
+            $result = $selector->select($event, $event->visits, (int) $batch->lookback_days, (int) $batch->time_tolerance_seconds, config('metrica-client-visits.default_goal_id') ? (int) config('metrica-client-visits.default_goal_id') : null, (string) $batch->selection_strategy);
             $candidate = $result['candidate'];
-            $fields = ['batch_id' => $batch->id, 'candidate_id' => $candidate?->id, 'match_type' => $result['match_type'], 'confidence' => $result['confidence'], 'reason' => $result['reason'], 'goal_confirmed' => $result['goal_confirmed']];
-            if ($candidate !== null) {
-                $fields += [
-                    'visit_id' => $candidate->visit_id, 'visit_started_at' => $candidate->started_at,
-                    'duration_seconds' => $candidate->duration_seconds, 'source' => $candidate->source,
-                    'source_detail' => $candidate->source_detail, 'utm_source' => $candidate->utm_source,
-                    'utm_medium' => $candidate->utm_medium, 'utm_campaign' => $candidate->utm_campaign,
-                    'referrer' => $candidate->referrer, 'start_url' => $candidate->start_url,
-                ];
-            }
-            VisitMatch::query()->updateOrCreate(['event_id' => $event->id], $fields);
-            $event->update(['status' => $result['reason'] === 'goal_not_found' ? 'goal_not_found' : ($candidate === null ? 'missing' : 'matched'), 'reason' => $result['reason']]);
+            $event->update([
+                'primary_visit_id' => $candidate?->id,
+                'status' => $result['reason'] === 'goal_not_found' ? 'goal_not_found' : ($candidate === null ? 'missing' : 'matched'),
+                'reason' => $result['reason'],
+            ]);
         }
         $hasMissing = $batch->events()->whereIn('status', ['missing', 'goal_not_found'])->exists();
         $batch->update(['status' => $hasMissing ? 'completed_with_missing' : 'completed', 'active_fingerprint' => BatchLookup::releasedFingerprint($batch->id), 'completed_at' => now()]);

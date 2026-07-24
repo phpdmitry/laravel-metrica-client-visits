@@ -7,7 +7,7 @@ namespace PhpDmitry\MetricaClientVisits\Support;
 use DateTimeImmutable;
 use DateTimeZone;
 use Generator;
-use PhpDmitry\MetricaClientVisits\Data\VisitMatchData;
+use PhpDmitry\MetricaClientVisits\Data\VisitData;
 
 final class TsvVisitParser
 {
@@ -48,7 +48,7 @@ final class TsvVisitParser
     }
 
     /** @param array<string, string> $row */
-    public function visit(array $row, DateTimeZone $counterTimezone, DateTimeZone $goalTimezone): VisitMatchData
+    public function visit(array $row, DateTimeZone $counterTimezone, DateTimeZone $goalTimezone): VisitData
     {
         $startedAt = $this->dateTime((string) ($row['ym:s:dateTime'] ?? ''), $counterTimezone);
         $goalIds = $this->list($row['ym:s:goalsID'] ?? '');
@@ -57,8 +57,9 @@ final class TsvVisitParser
             $this->list($row['ym:s:goalsDateTime'] ?? ''),
         );
 
-        return new VisitMatchData(
+        return new VisitData(
             visitId: (string) ($row['ym:s:visitID'] ?? ''),
+            clientId: (string) ($row['ym:s:clientID'] ?? ''),
             startedAt: $startedAt->setTimezone(new DateTimeZone('UTC')),
             durationSeconds: max(0, (int) ($row['ym:s:visitDuration'] ?? 0)),
             source: $this->nullable($row['ym:s:<attribution>TrafficSource'] ?? null),
